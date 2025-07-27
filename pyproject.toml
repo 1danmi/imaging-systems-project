@@ -9,7 +9,10 @@ dependencies = [
     "opencv-python==4.10.0.84",
     "pillow~=11.3",
     "pydantic-settings~=2.10",
-    "torch~=2.6"
+    "scikit-learn>=1.7.1",
+    "tensorboard>=2.20.0",
+    "torch~=2.6",
+    "tqdm>=4.67.1",
 ]
 
 [dependency-groups]

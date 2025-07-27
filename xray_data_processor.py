@@ -1,5 +1,5 @@
-import hashlib
 import json
+import hashlib
 
 import numpy as np
 from PIL import Image
@@ -50,12 +50,12 @@ class XRayDataProcessor:
     def _save_manifest(self) -> None:
         self._manifest_path.write_text(json.dumps(self._manifest, indent=2))
 
-    def _open_and_resize(self, path: Path) -> IMG:
+    def open_and_resize(self, path: Path) -> IMG:
         img = Image.open(path).convert("L") # 'L' => 8-bit grayscale [0,255]
         height, width  = self._config.output_size
         return img.resize((width, height), Image.BILINEAR)
 
-    def _to_tensor_and_normalize(self, img: IMG) -> Tensor:
+    def to_tensor_and_normalize(self, img: IMG) -> Tensor:
         arr = np.asarray(img, dtype=np.float32) / 255 # (H, W)
         if self._config.to_rgb:
             arr = np.stack([arr, arr, arr], axis=0) # (3, H, W)
@@ -169,8 +169,8 @@ class XRayDataProcessor:
 
         # 1) Originals (basic preprocess only)
         for path, label in self._records:
-            img = self._open_and_resize(path)
-            tensor = self._to_tensor_and_normalize(img)
+            img = self.open_and_resize(path)
+            tensor = self.to_tensor_and_normalize(img)
             images.append(tensor)
             labels.append(torch.tensor(label, dtype=torch.long))
 
@@ -187,7 +187,7 @@ class XRayDataProcessor:
                 if persist and out_path.exists():
                     aug_img = Image.open(out_path).convert("L")
                 else:
-                    base = self._open_and_resize(path)  # no normalization yet
+                    base = self.open_and_resize(path)  # no normalization yet
                     aug_img = aug_fn(base)
                     if persist:
                         out_path.parent.mkdir(parents=True, exist_ok=True)
@@ -198,7 +198,7 @@ class XRayDataProcessor:
                             "aug": aug_name,
                             "hash": aug_hash,
                         }
-                tensor = self._to_tensor_and_normalize(aug_img)
+                tensor = self.to_tensor_and_normalize(aug_img)
                 images.append(tensor)
                 labels.append(torch.tensor(label, dtype=torch.long))
 

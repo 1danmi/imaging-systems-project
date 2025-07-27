@@ -1,1 +1,2 @@
+from config.trainer_settings import TrainerSettings
 from config.processor_settings import ProcessorSettings
