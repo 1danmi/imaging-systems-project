@@ -307,5 +307,7 @@ http-client.private.env.json
 # Igonre temprary MS Word files
 ~*.docx
 
-shared_files
+logs
 data
+checkpoints
+experiments
