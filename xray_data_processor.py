@@ -14,9 +14,9 @@ from torch.utils.data import TensorDataset
 
 IMG = Image.Image
 
-from config import ProcessorSettings
+from config.processor_settings import ProcessorSettings
 
-AugName = Literal["none", "hflip", "rotate", "translate", "b&c", "noise", "clahe"]
+AugName = Literal["none", "hflip", "rotate", "translate", "brightness_contrast", "noise", "clahe"]
 
 class XRayDataProcessor:
     def __init__(self, config: ProcessorSettings):
@@ -34,7 +34,7 @@ class XRayDataProcessor:
             "hflip": self._hflip,
             "rotate": self._rotate,
             "translate": self._translate,
-            "b&c": self._aug_brightness_contrast,
+            "brightness_contrast": self._aug_brightness_contrast,
             "noise": self._add_noise,
             "clahe": self._clahe,
         }
@@ -160,24 +160,25 @@ class XRayDataProcessor:
         augmentations: list[AugName],
         persist: bool = True,
     ) -> TensorDataset:
-        """Create (or load) augmented variants and return a ready PyTorch TensorDataset."""
+        print(f"Augmenting dataset with: {augmentations}")
         if not self._records:
             raise RuntimeError("Call scan() before augment_dataset().")
 
         images: list[Tensor] = []
         labels: list[Tensor] = []
 
-        # 1) Originals (basic preprocess only)
+        print("Loading original images...")
         for path, label in self._records:
             img = self.open_and_resize(path)
             tensor = self.to_tensor_and_normalize(img)
             images.append(tensor)
             labels.append(torch.tensor(label, dtype=torch.long))
 
-        # 2) Augmentations
+
         for aug_name in augmentations:
             if aug_name not in self._aug_fns:
                 raise ValueError(f"Unknown augmentation '{aug_name}'")
+            print(f"Augmenting with {aug_name}...")
             aug_fn = self._aug_fns[aug_name]
 
             for path, label in self._records:

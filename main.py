@@ -3,10 +3,11 @@ from pathlib import Path
 import torch
 
 
-from config import ProcessorSettings, TrainerSettings
 from trainer import Trainer
 from models import SimpleCNN
+from experiment_runner import ExperimentRunner
 from xray_data_processor import XRayDataProcessor, AugName
+from config import ProcessorSettings, TrainerSettings, ExperimentConfig
 
 
 def train_model(dataset, processor_settings: ProcessorSettings, trainer_settings: TrainerSettings):
@@ -74,6 +75,29 @@ def main():
 
     print("Done. Launch TensorBoard with: \n\n    tensorboard --logdir", trainer_settings.log_dir, "\n")
 
+def main2():
+    root = Path('data/train')
+    proc_set = ProcessorSettings(root_dir=root)
+
+    AUG_SETS: list[list[AugName]] = [
+        ['hflip', 'rotate', 'translate'],
+        ['hflip', 'rotate', 'translate', 'noise'],
+        ['hflip', 'rotate', 'translate', 'brightness_contrast'],
+        ['hflip', 'rotate', 'translate', 'clahe'],
+        ['hflip', 'rotate', 'translate', 'noise', 'brightness_contrast', 'clahe'],
+    ]
+
+    configs = [
+        ExperimentConfig(run_name=f'aug_{i}', augmentations=augs) for i, augs in enumerate(AUG_SETS)
+    ]
+
+    runner = ExperimentRunner(proc_settings=proc_set,
+                              base_model_cls=SimpleCNN,
+                              trainer_defaults=TrainerSettings(k_folds=5, val_ratio=0.2))
+
+    summary = runner.run_all(configs)
+    print(summary['csv_path'])
+
 
 if __name__ == "__main__":
-    main()
+    main2()
