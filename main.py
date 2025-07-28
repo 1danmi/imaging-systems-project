@@ -2,12 +2,12 @@ from pathlib import Path
 
 import torch
 
-
 from trainer import Trainer
 from models import SimpleCNN
+from predictor import Predictor
 from experiment_runner import ExperimentRunner
 from xray_data_processor import XRayDataProcessor, AugName
-from config import ProcessorSettings, TrainerSettings, ExperimentConfig
+from config import ProcessorSettings, TrainerSettings, ExperimentConfig, PredictorSettings
 
 
 def train_model(dataset, processor_settings: ProcessorSettings, trainer_settings: TrainerSettings):
@@ -34,19 +34,12 @@ def load_model(device: torch.device, trainer_settings: TrainerSettings):
     return model
 
 
-def main():
+def train_simple_cnn():
     root = Path("data/train")
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     proc_settings = ProcessorSettings(root_dir=root)
     processor = XRayDataProcessor(proc_settings)
-    # processor.scan()
-    # augmentations: list[AugName] = ["none", "hflip", "rotate", "translate", "b&c", "noise", "clahe"]
-    # print("Augmenting data...")
-    # dataset = processor.augment_dataset(augmentations, persist=True)
-    #
-
-    # ckpt_path = results.get("ckpt_path", tr_settings.ckpt_dir / "best_model.pth")
     trainer_settings = TrainerSettings()
 
     # checkpoint = torch.load(ckpt_path, map_location="cpu")
@@ -75,7 +68,7 @@ def main():
 
     print("Done. Launch TensorBoard with: \n\n    tensorboard --logdir", trainer_settings.log_dir, "\n")
 
-def main2():
+def train_simple_cnn_multiple_augs():
     root = Path('data/train')
     proc_set = ProcessorSettings(root_dir=root)
 
@@ -99,5 +92,17 @@ def main2():
     print(summary['csv_path'])
 
 
+def predict():
+    proc_cfg = ProcessorSettings(root_dir=Path("data/train"))
+    settings = PredictorSettings(
+        model_path=Path("checkpoints/SimpleCNN/best_model.pth"),
+        images_root=Path("data/train"),
+        output_path=Path("predictions.csv"),
+        write_probs=True,
+    )
+    pred = Predictor(proc_cfg, base_model_cls=SimpleCNN)
+    pred.run(settings)
+
+
 if __name__ == "__main__":
-    main2()
+    predict()

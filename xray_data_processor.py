@@ -12,9 +12,10 @@ from PIL import Image
 from torch import Tensor
 from torch.utils.data import TensorDataset
 
+from config.processor_settings import ProcessorSettings
+
 IMG = Image.Image
 
-from config.processor_settings import ProcessorSettings
 
 AugName = Literal["none", "hflip", "rotate", "translate", "brightness_contrast", "noise", "clahe"]
 
@@ -147,7 +148,7 @@ class XRayDataProcessor:
             raise FileNotFoundError(f"No class folders under {self._config.root_dir}")
 
         for label, cdir in enumerate(class_dirs):
-            for pattern in ("*.jpg", "*.jpeg", "*.png", "*.bmp", "*.tif", "*.tiff"):
+            for pattern in ("*.jpg", "*.jpeg", "*.png"):
                 for f in cdir.glob(pattern):
                     if f.suffix.lower() in self._config.denylist_ext:
                         continue

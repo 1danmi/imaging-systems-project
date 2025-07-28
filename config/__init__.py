@@ -1,3 +1,4 @@
 from config.trainer_settings import TrainerSettings
 from config.experiment_configs import ExperimentConfig
 from config.processor_settings import ProcessorSettings
+from config.predictor_settings import PredictorSettings
