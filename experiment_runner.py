@@ -14,6 +14,7 @@ from sklearn.model_selection import StratifiedKFold
 from trainer import Trainer
 from xray_data_processor import XRayDataProcessor
 from config import ProcessorSettings, TrainerSettings, ExperimentConfig
+from torch.utils.data import DataLoader
 
 
 class ExperimentRunner:
@@ -85,8 +86,10 @@ class ExperimentRunner:
         return path
 
     def _write_html_summary(self, df: pd.DataFrame, best_run: str | None) -> None:
-        html = ["<html><head><meta charset='utf-8'><title>Experiment Summary</title></head><body>",
-                f"<h1>Experiment session – {dt.datetime.now().isoformat()}</h1>"]
+        html = [
+            "<html><head><meta charset='utf-8'><title>Experiment Summary</title></head><body>",
+            f"<h1>Experiment session – {dt.datetime.now().isoformat()}</h1>",
+        ]
         if best_run:
             html.append(f"<h2>Best run: {best_run}</h2>")
         html.append(df.to_html(index=False, escape=False))
@@ -96,8 +99,9 @@ class ExperimentRunner:
     def _run_single(self, exp_cfg: ExperimentConfig) -> dict[str, Any]:
         print(f"\n=== Running experiment: {exp_cfg.run_name} ===")
 
-        dataset = self.processor.augment_dataset(exp_cfg.augmentations, persist=True)
-        num_classes = len({int(lbl.item()) for _, lbl in dataset})
+        records = self.processor.records
+        targets = np.array([lbl for _, lbl in records])
+        num_classes = len(np.unique(targets))
 
         trainer_kwargs = self.trainer_defaults.model_dump(exclude={"ckpt_dir", "log_dir"})
         trainer_kwargs.update(exp_cfg.trainer_overrides)
@@ -108,27 +112,58 @@ class ExperimentRunner:
         trainer_settings.log_path = run_dir / "tb"
         trainer_settings.ckpt_path = run_dir / "ckpt"
 
+        skf = StratifiedKFold(n_splits=trainer_settings.k_folds, shuffle=True, random_state=trainer_settings.seed)
+
         in_ch = 3 if self.proc_settings.to_rgb else 1
-        model = self.base_model_cls(in_channels=in_ch, num_classes=num_classes)
-        trainer = Trainer(model, trainer_settings, num_classes=num_classes)
 
-        train_result = trainer.fit(dataset)
+        fold_results = []
+        val_datasets = []
 
-        # Aggregate metrics
-        if "folds" in train_result:
-            folds = train_result["folds"]
-            val_losses = [f["best_val_loss"] for f in folds]
-            best_epochs = [f["best_epoch"] for f in folds]
-        else:
-            folds = [train_result]
-            val_losses = [train_result["best_val_loss"]]
-            best_epochs = [train_result["best_epoch"]]
+        for fold, (train_idx, val_idx) in enumerate(skf.split(np.zeros(len(targets)), targets), start=1):
+            train_records = [records[i] for i in train_idx]
+            val_records = [records[i] for i in val_idx]
+            train_ds = self.processor.make_dataset(exp_cfg.augmentations, train_records, persist=True)
+            val_ds = self.processor.make_dataset(["none"], val_records, persist=True)
+            val_datasets.append(val_ds)
 
-        cm, val_acc = self._confusion_over_folds(trainer, dataset, trainer_settings)
+            model = self.base_model_cls(in_channels=in_ch, num_classes=num_classes)
+            trainer = Trainer(model, trainer_settings, num_classes=num_classes)
+            res = trainer._train_loop(train_ds, val_ds, fold_id=fold)
+            fold_results.append(res)
+
+        val_losses = [f["best_val_loss"] for f in fold_results]
+        val_accs = [f.get("best_val_acc", 0.0) for f in fold_results]
+        best_epochs = [f["best_epoch"] for f in fold_results]
+
+        # Evaluate best models on their validation sets
+        all_true = []
+        all_pred = []
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        for res, val_ds in zip(fold_results, val_datasets):
+            ckpt = torch.load(res["ckpt_path"], map_location=device)
+            model = self.base_model_cls(in_channels=in_ch, num_classes=num_classes)
+            model.load_state_dict(ckpt["model_state_dict"])
+            model.to(device).eval()
+            loader = DataLoader(
+                val_ds,
+                batch_size=trainer_settings.batch_size,
+                shuffle=False,
+                num_workers=trainer_settings.num_workers,
+                pin_memory=trainer_settings.pin_memory,
+            )
+            with torch.no_grad():
+                for x, y in loader:
+                    x = x.to(device)
+                    logits = model(x)
+                    preds = logits.argmax(dim=1).cpu().tolist()
+                    all_pred.extend(preds)
+                    all_true.extend(y.tolist())
+
+        cm = confusion_matrix(all_true, all_pred, labels=list(range(num_classes)))
         cm_path = self._save_confusion_matrix(cm, run_dir / "confusion_matrix.png")
 
         best_fold_idx = int(np.argmin(val_losses))
-        best_ckpt = folds[best_fold_idx]["ckpt_path"]
+        best_ckpt = fold_results[best_fold_idx]["ckpt_path"]
         self.mapping[exp_cfg.run_name] = str(best_ckpt)
 
         row = {
@@ -138,7 +173,7 @@ class ExperimentRunner:
             "val_loss_mean": float(np.mean(val_losses)),
             "val_loss_std": float(np.std(val_losses)),
             "best_epoch_mean": float(np.mean(best_epochs)),
-            "val_acc_mean": val_acc,  # from cm
+            "val_acc_mean": float(np.mean(val_accs)),
             "ckpt_path": str(best_ckpt),
             "cm_path": str(cm_path),
         }
@@ -173,7 +208,6 @@ class ExperimentRunner:
             "mapping_path": self.mapping_path,
             "best_run_name": best_run_name,
         }
-
 
     def predict_folder(self, best_run_name: str, images_dir: Path, output_csv: Path) -> None:
         """Load a saved model by run name and predict all images in a folder."""
@@ -225,4 +259,3 @@ class ExperimentRunner:
             for p, a0, a1, pr in zip(paths, preds0, preds1, probs_all):
                 writer.writerow([p, a0, a1] + pr)
         print(f"Saved predictions to {output_csv}")
-
