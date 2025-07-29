@@ -13,7 +13,8 @@ dependencies = [
     "pydantic-settings~=2.10",
     "scikit-learn>=1.7.1",
     "tensorboard>=2.20.0",
-    "torch~=2.6",
+    "torch~=2.7",
+    "torchvision~=0.22",
     "tqdm>=4.67.1",
 ]
 

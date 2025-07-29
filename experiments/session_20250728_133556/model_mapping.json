@@ -1,7 +1,0 @@
-{
-  "aug_0": "experiments\\session_20250728_133556\\aug_0\\ckpt\\SimpleCNN\\best_model_fold5.pth",
-  "aug_1": "experiments\\session_20250728_133556\\aug_1\\ckpt\\SimpleCNN\\best_model_fold4.pth",
-  "aug_2": "experiments\\session_20250728_133556\\aug_2\\ckpt\\SimpleCNN\\best_model_fold4.pth",
-  "aug_3": "experiments\\session_20250728_133556\\aug_3\\ckpt\\SimpleCNN\\best_model_fold4.pth",
-  "aug_4": "experiments\\session_20250728_133556\\aug_4\\ckpt\\SimpleCNN\\best_model_fold5.pth"
-}
