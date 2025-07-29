@@ -10,6 +10,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 from sklearn.metrics import confusion_matrix
 from sklearn.model_selection import StratifiedKFold
+from torch.utils.data import DataLoader
 
 from trainer import Trainer
 from xray_data_processor import XRayDataProcessor
@@ -44,27 +45,38 @@ class ExperimentRunner:
         self.rows: list[dict[str, Any]] = []
 
     @staticmethod
-    def _confusion_over_folds(trainer: Trainer, dataset, settings: TrainerSettings):
-        targets = np.array([dataset[i][1] for i in range(len(dataset))])
+    def _confusion_over_folds(records: list[tuple[Path, int]], processor: XRayDataProcessor,
+                              base_model_cls: Callable[..., torch.nn.Module],
+                              num_classes: int,
+                              settings: TrainerSettings) -> tuple[np.ndarray, float]:
+        targets = np.array([lbl for _, lbl in records])
         skf = StratifiedKFold(n_splits=settings.k_folds, shuffle=True, random_state=settings.seed)
 
-        all_true = []
-        all_pred = []
-        device = trainer.device
-        model = trainer.model.to(device)
-        model.eval()
+        all_true: list[int] = []
+        all_pred: list[int] = []
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-        with torch.no_grad():
-            for train_idx, val_idx in skf.split(np.zeros(len(targets)), targets):
-                for idx in val_idx:
-                    x, y = dataset[idx]
-                    x = x.unsqueeze(0).to(device)
+        for fold, (_, val_idx) in enumerate(skf.split(np.zeros(len(targets)), targets), start=1):
+            ckpt = torch.load(settings.ckpt_dir / f"best_model_fold{fold}.pth", map_location="cpu")
+            model = base_model_cls(in_channels=3 if processor._config.to_rgb else 1, num_classes=num_classes)
+            model.load_state_dict(ckpt["model_state_dict"])
+            model.to(device)
+            model.eval()
+
+            val_records = [records[i] for i in val_idx]
+            val_ds = processor.make_dataset(val_records, augmentations=[])
+            loader = DataLoader(val_ds, batch_size=settings.batch_size, shuffle=False,
+                               num_workers=settings.num_workers, pin_memory=settings.pin_memory)
+
+            with torch.no_grad():
+                for x, y in loader:
+                    x = x.to(device)
                     logits = model(x)
-                    pred = logits.argmax(dim=1).item()
-                    all_true.append(int(y))
-                    all_pred.append(pred)
+                    preds = logits.argmax(dim=1).cpu().tolist()
+                    all_true.extend(y.tolist())
+                    all_pred.extend(preds)
 
-        cm = confusion_matrix(all_true, all_pred, labels=list(range(len(np.unique(targets)))))
+        cm = confusion_matrix(all_true, all_pred, labels=list(range(num_classes)))
         acc = (np.array(all_true) == np.array(all_pred)).mean()
         return cm, float(acc)
 
@@ -96,8 +108,8 @@ class ExperimentRunner:
     def _run_single(self, exp_cfg: ExperimentConfig) -> dict[str, Any]:
         print(f"\n=== Running experiment: {exp_cfg.run_name} ===")
 
-        dataset = self.processor.augment_dataset(exp_cfg.augmentations, persist=True)
-        num_classes = len({int(lbl.item()) for _, lbl in dataset})
+        dataset = self.processor.make_dataset(augmentations=exp_cfg.augmentations)
+        num_classes = len({lbl for _, lbl in self.processor.records})
 
         trainer_kwargs = self.trainer_defaults.model_dump(exclude={"ckpt_dir", "log_dir"})
         trainer_kwargs.update(exp_cfg.trainer_overrides)
@@ -118,13 +130,22 @@ class ExperimentRunner:
         if "folds" in train_result:
             folds = train_result["folds"]
             val_losses = [f["best_val_loss"] for f in folds]
+            val_accs = [f.get("best_val_acc", 0.0) for f in folds]
             best_epochs = [f["best_epoch"] for f in folds]
         else:
             folds = [train_result]
             val_losses = [train_result["best_val_loss"]]
+            val_accs = [train_result.get("best_val_acc", 0.0)]
             best_epochs = [train_result["best_epoch"]]
 
-        cm, val_acc = self._confusion_over_folds(trainer, dataset, trainer_settings)
+        val_acc = float(np.mean(val_accs))
+        cm, _ = self._confusion_over_folds(
+            self.processor.records,
+            self.processor,
+            self.base_model_cls,
+            num_classes,
+            trainer_settings,
+        )
         cm_path = self._save_confusion_matrix(cm, run_dir / "confusion_matrix.png")
 
         best_fold_idx = int(np.argmin(val_losses))

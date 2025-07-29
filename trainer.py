@@ -7,7 +7,8 @@ import torch.nn as nn
 import torch.optim as optim
 from torch.utils.tensorboard import SummaryWriter
 from torch.optim.lr_scheduler import ReduceLROnPlateau
-from torch.utils.data import DataLoader, Dataset, Subset
+from torch.utils.data import DataLoader, Dataset
+from copy import deepcopy
 import numpy as np
 from tqdm.auto import tqdm
 from sklearn.model_selection import StratifiedKFold
@@ -45,7 +46,7 @@ class Trainer:
         self.scaler = torch.cuda.amp.GradScaler(enabled=self.config.amp)
 
     def _fit_single_split(self, dataset: Dataset) -> dict[str, Any]:
-        # Split train/val
+        # Split train/val before any augmentation is applied
         n = len(dataset)
         indices = np.arange(n)
         np.random.shuffle(indices)
@@ -53,20 +54,30 @@ class Trainer:
         val_idx = indices[:val_size]
         train_idx = indices[val_size:]
 
-        train_ds = Subset(dataset, train_idx.tolist())
-        val_ds = Subset(dataset, val_idx.tolist())
+        if hasattr(dataset, "subset"):
+            train_ds = dataset.subset(train_idx.tolist())
+            val_ds = dataset.subset(val_idx.tolist(), augmentations=[])
+        else:
+            train_ds = torch.utils.data.Subset(dataset, train_idx.tolist())
+            val_ds = torch.utils.data.Subset(dataset, val_idx.tolist())
 
         return self._train_loop(train_ds, val_ds, fold_id=None)
 
     def _fit_kfold(self, dataset: Dataset) -> dict[str, Any]:
-        # Extract labels to stratify
-        targets = np.array([dataset[i][1] for i in range(len(dataset))])
+        # Extract labels to stratify from underlying records
+        targets = np.array([dataset.records[i][1] if hasattr(dataset, "records") else dataset[i][1] for i in range(len(dataset))])
         skf = StratifiedKFold(n_splits=self.config.k_folds, shuffle=True, random_state=self.config.seed)
 
+        initial_state = deepcopy(self.model.state_dict())
         fold_results = []
         for fold, (train_idx, val_idx) in enumerate(skf.split(np.zeros(len(targets)), targets), start=1):
-            train_ds = Subset(dataset, train_idx.tolist())
-            val_ds = Subset(dataset, val_idx.tolist())
+            self.model.load_state_dict(initial_state)
+            if hasattr(dataset, "subset"):
+                train_ds = dataset.subset(train_idx.tolist())
+                val_ds = dataset.subset(val_idx.tolist(), augmentations=[])
+            else:
+                train_ds = torch.utils.data.Subset(dataset, train_idx.tolist())
+                val_ds = torch.utils.data.Subset(dataset, val_idx.tolist())
             res = self._train_loop(train_ds, val_ds, fold_id=fold)
             fold_results.append(res)
 
@@ -111,6 +122,7 @@ class Trainer:
         self.model.to(self.device)
 
         best_val_loss = float("inf")
+        best_val_acc = 0.0
         best_epoch = -1
         ckpt_path = self.config.ckpt_dir / (f"best_model_fold{fold_id}.pth" if fold_id else "best_model.pth")
 
@@ -132,6 +144,7 @@ class Trainer:
             improved = val_loss < best_val_loss - 1e-6
             if improved:
                 best_val_loss = val_loss
+                best_val_acc = val_acc
                 best_epoch = epoch
                 if self.config.save_best_only:
                     torch.save({
@@ -156,6 +169,7 @@ class Trainer:
 
         return {
             "best_val_loss": best_val_loss,
+            "best_val_acc": best_val_acc,
             "best_epoch": best_epoch,
             "ckpt_path": ckpt_path,
         }

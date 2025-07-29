@@ -10,7 +10,8 @@ import cv2
 import torch
 from PIL import Image
 from torch import Tensor
-from torch.utils.data import TensorDataset
+from torch.utils.data import Dataset, TensorDataset
+import random
 
 from config.processor_settings import ProcessorSettings
 
@@ -39,6 +40,45 @@ class XRayDataProcessor:
             "noise": self._add_noise,
             "clahe": self._clahe,
         }
+
+    # --------------------------------------------------------------
+    # Dataset helpers
+    # --------------------------------------------------------------
+
+    class AugDataset(Dataset):
+        """Dataset that loads images on the fly and applies random augmentation."""
+
+        def __init__(self, records: list[tuple[Path, int]], processor: "XRayDataProcessor", augmentations: list[AugName] | None = None):
+            self.records = list(records)
+            self.processor = processor
+            self.augmentations = [a for a in (augmentations or []) if a != "none"]
+
+        def __len__(self) -> int:
+            return len(self.records)
+
+        def __getitem__(self, idx: int):
+            path, label = self.records[idx]
+            img = self.processor.open_and_resize(path)
+            if self.augmentations:
+                aug_name = random.choice(self.augmentations)
+                img = self.processor._aug_fns[aug_name](img)
+            tensor = self.processor.to_tensor_and_normalize(img)
+            return tensor, torch.tensor(label, dtype=torch.long)
+
+        def subset(self, indices: list[int], augmentations: list[AugName] | None = None) -> "XRayDataProcessor.AugDataset":
+            recs = [self.records[i] for i in indices]
+            if augmentations is None:
+                augmentations = self.augmentations
+            return XRayDataProcessor.AugDataset(recs, self.processor, augmentations)
+
+    @property
+    def records(self) -> list[tuple[Path, int]]:
+        return list(self._records)
+
+    def make_dataset(self, records: list[tuple[Path, int]] | None = None, augmentations: list[AugName] | None = None) -> Dataset:
+        if records is None:
+            records = self._records
+        return XRayDataProcessor.AugDataset(list(records), self, augmentations)
 
     def _load_manifest(self) -> dict[str, dict]:
         if self._manifest_path.exists():
