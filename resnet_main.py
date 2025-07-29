@@ -16,7 +16,7 @@ def train_resnet18():
     processor = XRayDataProcessor(proc_settings)
     trainer_settings = TrainerSettings(model_name="ResNet18")
 
-    dataset = processor.augment_dataset(["none"], persist=True)
+    dataset = processor.make_dataset(["none"], persist=True)
     num_classes = len({lbl.item() for _, lbl in dataset})
     model = ResNet18(in_channels=3 if proc_settings.to_rgb else 1, num_classes=num_classes)
 
@@ -26,28 +26,24 @@ def train_resnet18():
 
 
 def train_resnet18_multiple_augs():
-    root = Path('data/train')
+    root = Path("data/train")
     proc_set = ProcessorSettings(root_dir=root)
 
     AUG_SETS: list[list[AugName]] = [
-        ['hflip', 'rotate', 'translate'],
-        ['hflip', 'rotate', 'translate', 'noise'],
-        ['hflip', 'rotate', 'translate', 'brightness_contrast'],
-        ['hflip', 'rotate', 'translate', 'clahe'],
-        ['hflip', 'rotate', 'translate', 'noise', 'brightness_contrast', 'clahe'],
+        ["hflip", "rotate", "translate"],
+        ["hflip", "rotate", "translate", "noise"],
+        ["hflip", "rotate", "translate", "brightness_contrast"],
+        ["hflip", "rotate", "translate", "clahe"],
+        ["hflip", "rotate", "translate", "noise", "brightness_contrast", "clahe"],
     ]
 
-    configs = [
-        ExperimentConfig(run_name=f'aug_{i}', augmentations=augs) for i, augs in enumerate(AUG_SETS)
-    ]
+    configs = [ExperimentConfig(run_name=f"aug_{i}", augmentations=augs) for i, augs in enumerate(AUG_SETS)]
 
     defaults = TrainerSettings(model_name="ResNet18", k_folds=5, val_ratio=0.2)
-    runner = ExperimentRunner(proc_settings=proc_set,
-                              base_model_cls=ResNet18,
-                              trainer_defaults=defaults)
+    runner = ExperimentRunner(proc_settings=proc_set, base_model_cls=ResNet18, trainer_defaults=defaults)
 
     summary = runner.run_all(configs)
-    print(summary['csv_path'])
+    print(summary["csv_path"])
 
 
 def predict_resnet18():
