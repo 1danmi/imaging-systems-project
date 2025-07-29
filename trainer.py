@@ -1,6 +1,7 @@
 import time
 import random
 from typing import Any
+from copy import deepcopy
 
 import torch
 import torch.nn as nn
@@ -38,6 +39,9 @@ class Trainer:
         if self.config.seed is not None:
             self._set_seed(self.config.seed)
 
+        # Save initial weights to reset between folds
+        self._initial_state = deepcopy(model.state_dict())
+
         self.config.log_dir.mkdir(parents=True, exist_ok=True)
         self.config.ckpt_dir.mkdir(parents=True, exist_ok=True)
 
@@ -65,6 +69,7 @@ class Trainer:
 
         fold_results = []
         for fold, (train_idx, val_idx) in enumerate(skf.split(np.zeros(len(targets)), targets), start=1):
+            self._reset_model()
             train_ds = Subset(dataset, train_idx.tolist())
             val_ds = Subset(dataset, val_idx.tolist())
             res = self._train_loop(train_ds, val_ds, fold_id=fold)
@@ -101,8 +106,12 @@ class Trainer:
         if self.config.optimizer.lower() == "adam":
             optimizer = optim.Adam(self.model.parameters(), lr=self.config.lr, weight_decay=self.config.weight_decay)
         elif self.config.optimizer.lower() == "sgd":
-            optimizer = optim.SGD(self.model.parameters(), lr=self.config.lr, momentum=self.config.momentum,
-                                  weight_decay=self.config.weight_decay)
+            optimizer = optim.SGD(
+                self.model.parameters(),
+                lr=self.config.lr,
+                momentum=self.config.momentum,
+                weight_decay=self.config.weight_decay,
+            )
         else:
             raise ValueError("Unsupported optimizer")
 
@@ -111,6 +120,7 @@ class Trainer:
         self.model.to(self.device)
 
         best_val_loss = float("inf")
+        best_val_acc = 0.0
         best_epoch = -1
         ckpt_path = self.config.ckpt_dir / (f"best_model_fold{fold_id}.pth" if fold_id else "best_model.pth")
 
@@ -132,30 +142,39 @@ class Trainer:
             improved = val_loss < best_val_loss - 1e-6
             if improved:
                 best_val_loss = val_loss
+                best_val_acc = val_acc
                 best_epoch = epoch
                 if self.config.save_best_only:
-                    torch.save({
-                        "model_state_dict": self.model.state_dict(),
-                        "settings": self.config.model_dump(),
-                        "class_names": self.class_names,
-                    }, ckpt_path)
+                    torch.save(
+                        {
+                            "model_state_dict": self.model.state_dict(),
+                            "settings": self.config.model_dump(),
+                            "class_names": self.class_names,
+                        },
+                        ckpt_path,
+                    )
             elif (epoch - best_epoch) >= self.config.early_stop_patience:
                 print(f"Early stopping at epoch {epoch}. Best epoch was {best_epoch} (val_loss={best_val_loss:.4f}).")
                 break
 
             dt = time.time() - t0
             print(
-                f"Epoch {epoch:03d} | train_loss={train_loss:.4f} acc={train_acc:.3f} | val_loss={val_loss:.4f} acc={val_acc:.3f} | {dt:.1f}s")
+                f"Epoch {epoch:03d} | train_loss={train_loss:.4f} acc={train_acc:.3f} | val_loss={val_loss:.4f} acc={val_acc:.3f} | {dt:.1f}s"
+            )
 
         if not self.config.save_best_only:
-            torch.save({
-                "model_state_dict": self.model.state_dict(),
-                "settings": self.config.model_dump(),
-                "class_names": self.class_names,
-            }, ckpt_path)
+            torch.save(
+                {
+                    "model_state_dict": self.model.state_dict(),
+                    "settings": self.config.model_dump(),
+                    "class_names": self.class_names,
+                },
+                ckpt_path,
+            )
 
         return {
             "best_val_loss": best_val_loss,
+            "best_val_acc": best_val_acc,
             "best_epoch": best_epoch,
             "ckpt_path": ckpt_path,
         }
@@ -211,6 +230,10 @@ class Trainer:
         torch.backends.cudnn.deterministic = True
         torch.backends.cudnn.benchmark = False
 
+    def _reset_model(self) -> None:
+        """Restore the model weights to their initial state."""
+        self.model.load_state_dict(self._initial_state)
+
     def fit(self, dataset: Dataset) -> dict[str, Any]:
         if self.config.k_folds == 1:
             return self._fit_single_split(dataset)
@@ -225,7 +248,3 @@ class Trainer:
             probs = torch.softmax(logits, dim=1)[0].cpu()
             pred = int(probs.argmax().item())
         return pred, probs
-
-
-
-

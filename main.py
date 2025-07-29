@@ -105,4 +105,4 @@ def predict():
 
 
 if __name__ == "__main__":
-    predict()
+    train_simple_cnn_multiple_augs()
