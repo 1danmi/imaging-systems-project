@@ -46,7 +46,8 @@ class Trainer:
         self.config.ckpt_dir.mkdir(parents=True, exist_ok=True)
 
         self.writer = SummaryWriter(log_dir=str(self.config.log_path))
-        self.scaler = torch.cuda.amp.GradScaler(enabled=self.config.amp)
+        # Use new torch.amp API
+        self.scaler = torch.amp.GradScaler(device_type="cuda", enabled=self.config.amp)
 
     def _fit_single_split(self, dataset: Dataset) -> dict[str, Any]:
         # Split train/val
@@ -196,7 +197,7 @@ class Trainer:
 
             if train:
                 optimizer.zero_grad()
-                with torch.cuda.amp.autocast(enabled=self.config.amp):
+                with torch.amp.autocast(device_type="cuda", enabled=self.config.amp):
                     outputs = self.model(inputs)
                     loss = criterion(outputs, targets)
                 self.scaler.scale(loss).backward()
