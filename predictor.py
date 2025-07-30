@@ -15,8 +15,6 @@ class Predictor:
         self.base_model_cls = base_model_cls
         self.processor = XRayDataProcessor(processor_settings)
 
-
-    # ---------------- Internals -------------------
     def _load_model(self, ckpt_path: Path, device: torch.device):
         ckpt = torch.load(ckpt_path, map_location=device, weights_only=False)
         num_classes = ckpt.get("num_classes", len(ckpt.get("class_names", [])) or 3)
@@ -30,18 +28,27 @@ class Predictor:
         exts = {".jpg", ".jpeg", ".png"}
         return sorted([p for p in Path(root).rglob("*") if p.suffix.lower() in exts])
 
-    def _infer(self, model: torch.nn.Module, device: torch.device, paths: Sequence[Path],
-               num_classes: int, batch_size: int, write_probs: bool) -> list[list[Any]]:
+    def _infer(
+        self,
+        model: torch.nn.Module,
+        device: torch.device,
+        paths: Sequence[Path],
+        num_classes: int,
+        batch_size: int,
+        write_probs: bool,
+    ) -> list[list[Any]]:
         sm = torch.nn.Softmax(dim=1)
         out_rows: list[list[Any]] = []
         with torch.inference_mode():
             for i in range(0, len(paths), batch_size):
-                chunk = paths[i:i+batch_size]
+                chunk = paths[i : i + batch_size]
                 batch = [self.processor.to_tensor_and_normalize(self.processor.open_and_resize(p)) for p in chunk]
                 batch_t = torch.stack(batch).to(device)
                 logits = model(batch_t)
                 if logits.shape[1] != num_classes:
-                    raise ValueError(f"Model output classes ({logits.shape[1]}) != expected num_classes ({num_classes})")
+                    raise ValueError(
+                        f"Model output classes ({logits.shape[1]}) != expected num_classes ({num_classes})"
+                    )
                 probs = sm(logits).cpu().numpy()
                 preds = probs.argmax(axis=1)
                 for path, pred0, prob_vec in zip(chunk, preds, probs):

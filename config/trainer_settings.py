@@ -20,7 +20,7 @@ class TrainerSettings(BaseSettings):
 
     class_weighted_loss: bool = True
 
-    num_workers: int = 4 # max(os.cpu_count() - 1, 0) if os.cpu_count() else 0
+    num_workers: int = 4  # max(os.cpu_count() - 1, 0) if os.cpu_count() else 0
     pin_memory: bool = True
     amp: bool = True
 
@@ -39,5 +39,3 @@ class TrainerSettings(BaseSettings):
     @property
     def ckpt_dir(self) -> Path:
         return self.ckpt_path / self.model_name
-
-

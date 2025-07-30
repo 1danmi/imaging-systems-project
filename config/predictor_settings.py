@@ -2,6 +2,7 @@ from pathlib import Path
 
 from pydantic_settings import BaseSettings
 
+
 class PredictorSettings(BaseSettings):
     model_path: Path
     images_root: Path

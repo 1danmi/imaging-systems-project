@@ -2,6 +2,7 @@ import torch
 import torch.nn as nn
 from torchvision import models
 
+
 class ResNet18(nn.Module):
     def __init__(self, in_channels: int = 3, num_classes: int = 3, pretrained: bool = True):
         super().__init__()
@@ -10,11 +11,14 @@ class ResNet18(nn.Module):
 
         if in_channels != 3:
             conv1 = self.model.conv1
-            new_conv = nn.Conv2d(in_channels, conv1.out_channels,
-                                  kernel_size=conv1.kernel_size,
-                                  stride=conv1.stride,
-                                  padding=conv1.padding,
-                                  bias=False)
+            new_conv = nn.Conv2d(
+                in_channels,
+                conv1.out_channels,
+                kernel_size=conv1.kernel_size,
+                stride=conv1.stride,
+                padding=conv1.padding,
+                bias=False,
+            )
             with torch.no_grad():
                 new_conv.weight.copy_(conv1.weight.sum(dim=1, keepdim=True))
 
