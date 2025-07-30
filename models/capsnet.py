@@ -28,7 +28,7 @@ class DigitCapsLayer(nn.Module):
         # x shape: (batch, num_routes, in_dim)
         batch_size = x.size(0)
         # (batch, num_routes, num_capsules, out_dim)
-        u_hat = torch.einsum("bri,rijo->brjo", x, self.W)
+        u_hat = torch.einsum("bri,rjio->brjo", x, self.W)
         b_ij = torch.zeros(batch_size, self.num_routes, self.num_capsules, device=x.device)
         for i in range(self.num_iterations):
             c_ij = F.softmax(b_ij, dim=2)
