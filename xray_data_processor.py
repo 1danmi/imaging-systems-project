@@ -4,7 +4,7 @@ import hashlib
 import numpy as np
 from PIL import Image
 from pathlib import Path
-from typing import Literal, Callable
+from typing import Literal, Callable, Sequence
 
 import cv2
 import torch
@@ -18,6 +18,7 @@ IMG = Image.Image
 
 
 AugName = Literal["none", "hflip", "rotate", "translate", "brightness_contrast", "noise", "clahe"]
+
 
 class XRayDataProcessor:
     def __init__(self, config: ProcessorSettings):
@@ -51,17 +52,22 @@ class XRayDataProcessor:
     def _save_manifest(self) -> None:
         self._manifest_path.write_text(json.dumps(self._manifest, indent=2))
 
+    @property
+    def records(self) -> list[tuple[Path, int]]:
+        """Return a copy of the internal list of image paths and labels."""
+        return list(self._records)
+
     def open_and_resize(self, path: Path) -> IMG:
-        img = Image.open(path).convert("L") # 'L' => 8-bit grayscale [0,255]
-        height, width  = self._config.output_size
+        img = Image.open(path).convert("L")  # 'L' => 8-bit grayscale [0,255]
+        height, width = self._config.output_size
         return img.resize((width, height), Image.BILINEAR)
 
     def to_tensor_and_normalize(self, img: IMG) -> Tensor:
-        arr = np.asarray(img, dtype=np.float32) / 255 # (H, W)
+        arr = np.asarray(img, dtype=np.float32) / 255  # (H, W)
         if self._config.to_rgb:
-            arr = np.stack([arr, arr, arr], axis=0) # (3, H, W)
+            arr = np.stack([arr, arr, arr], axis=0)  # (3, H, W)
         else:
-            arr = arr[None, ...] # (1, H, W)
+            arr = arr[None, ...]  # (1, H, W)
 
         tensor = torch.from_numpy(arr)
         mean = torch.tensor(self._config.normalize_mean[: tensor.shape[0]]).view(-1, 1, 1)
@@ -156,25 +162,29 @@ class XRayDataProcessor:
         if not self._records:
             raise FileNotFoundError("No images found – check extensions/denylist.")
 
-    def augment_dataset(
+    def make_dataset(
         self,
         augmentations: list[AugName],
+        records: Sequence[tuple[Path, int]] | None = None,
         persist: bool = True,
     ) -> TensorDataset:
+        """Create a ``TensorDataset`` from the given records applying the
+        specified augmentations."""
+        if records is None:
+            records = self._records
+        if not records:
+            raise RuntimeError("No image records provided")
         print(f"Augmenting dataset with: {augmentations}")
-        if not self._records:
-            raise RuntimeError("Call scan() before augment_dataset().")
 
         images: list[Tensor] = []
         labels: list[Tensor] = []
 
         print("Loading original images...")
-        for path, label in self._records:
+        for path, label in records:
             img = self.open_and_resize(path)
             tensor = self.to_tensor_and_normalize(img)
             images.append(tensor)
             labels.append(torch.tensor(label, dtype=torch.long))
-
 
         for aug_name in augmentations:
             if aug_name not in self._aug_fns:
@@ -182,7 +192,7 @@ class XRayDataProcessor:
             print(f"Augmenting with {aug_name}...")
             aug_fn = self._aug_fns[aug_name]
 
-            for path, label in self._records:
+            for path, label in records:
                 aug_hash = self._hash_for_aug(path, aug_name)
                 out_path = self._augmented_path(path, aug_name, aug_hash)
 
@@ -211,11 +221,22 @@ class XRayDataProcessor:
         y = torch.stack(labels)  # (N,)
         return TensorDataset(X, y)
 
+    # Backwards compatible alias
+    def augment_dataset(
+        self,
+        augmentations: list[AugName],
+        persist: bool = True,
+    ) -> TensorDataset:
+        return self.make_dataset(augmentations, records=None, persist=persist)
+
+
 if __name__ == "__main__":
     root = Path("data/train")
     settings = ProcessorSettings(root_dir=root)
     proc = XRayDataProcessor(settings)
     proc.scan()
-    ds = proc.augment_dataset(["none", "hflip", "rotate", "translate", "b&c", "noise", "clahe"], persist=True)
+    ds = proc.make_dataset(
+        ["none", "hflip", "rotate", "translate", "brightness_contrast", "noise", "clahe"], persist=True
+    )
     print("Dataset size:", len(ds))
     print("Tensor shapes:", ds.tensors[0].shape, ds.tensors[1].shape)
