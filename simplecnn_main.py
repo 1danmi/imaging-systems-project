@@ -6,8 +6,8 @@ from trainer import Trainer
 from models import SimpleCNN
 from predictor import Predictor
 from experiment_runner import ExperimentRunner
-from xray_data_processor import XRayDataProcessor, AugName
-from config import ProcessorSettings, TrainerSettings, ExperimentConfig, PredictorSettings
+from xray_data_processor import XRayDataProcessor
+from config import ProcessorSettings, TrainerSettings, ExperimentConfig, PredictorSettings, AugName
 
 
 def train_model(dataset, processor_settings: ProcessorSettings, trainer_settings: TrainerSettings):
@@ -74,6 +74,7 @@ def train_simple_cnn_multiple_augs():
     proc_set = ProcessorSettings(root_dir=root)
 
     AUG_SETS: list[list[AugName]] = [
+        [],
         ["hflip", "rotate", "translate"],
         ["hflip", "rotate", "translate", "noise"],
         ["hflip", "rotate", "translate", "brightness_contrast"],

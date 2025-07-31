@@ -8,5 +8,6 @@ class PredictorSettings(BaseSettings):
     images_root: Path
     output_path: Path
     batch_size: int = 32
+    write_label_idx: bool = True
     write_probs: bool = False
     device: str | None = None

@@ -1,13 +1,11 @@
 from pathlib import Path
 
-import torch
-
 from trainer import Trainer
 from models import CapsNet
 from predictor import Predictor
 from experiment_runner import ExperimentRunner
-from xray_data_processor import XRayDataProcessor, AugName
-from config import ProcessorSettings, TrainerSettings, ExperimentConfig, PredictorSettings
+from xray_data_processor import XRayDataProcessor
+from config import ProcessorSettings, TrainerSettings, ExperimentConfig, PredictorSettings, AugName
 
 
 def train_capsnet():

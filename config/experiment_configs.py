@@ -1,8 +1,8 @@
-from typing import Any
+from typing import Any, Literal
 
 from pydantic_settings import BaseSettings
 
-from xray_data_processor import AugName
+AugName = Literal["none", "hflip", "rotate", "translate", "brightness_contrast", "noise", "clahe"]
 
 
 class ExperimentConfig(BaseSettings):

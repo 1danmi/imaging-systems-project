@@ -2,7 +2,6 @@ import json
 import hashlib
 
 import numpy as np
-from PIL import Image
 from pathlib import Path
 from typing import Literal, Callable, Sequence
 
@@ -12,12 +11,10 @@ from PIL import Image
 from torch import Tensor
 from torch.utils.data import TensorDataset
 
+from config.experiment_configs import AugName
 from config.processor_settings import ProcessorSettings
 
 IMG = Image.Image
-
-
-AugName = Literal["none", "hflip", "rotate", "translate", "brightness_contrast", "noise", "clahe"]
 
 
 class XRayDataProcessor:

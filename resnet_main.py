@@ -1,13 +1,11 @@
 from pathlib import Path
 
-import torch
-
 from trainer import Trainer
 from models import ResNet18
 from predictor import Predictor
 from experiment_runner import ExperimentRunner
-from xray_data_processor import XRayDataProcessor, AugName
-from config import ProcessorSettings, TrainerSettings, ExperimentConfig, PredictorSettings
+from xray_data_processor import XRayDataProcessor
+from config import ProcessorSettings, TrainerSettings, ExperimentConfig, PredictorSettings, AugName
 
 
 def train_resnet18():
@@ -30,6 +28,7 @@ def train_resnet18_multiple_augs():
     proc_set = ProcessorSettings(root_dir=root)
 
     AUG_SETS: list[list[AugName]] = [
+        [],
         ["hflip", "rotate", "translate"],
         ["hflip", "rotate", "translate", "noise"],
         ["hflip", "rotate", "translate", "brightness_contrast"],

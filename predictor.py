@@ -24,9 +24,9 @@ class Predictor:
         model.to(device).eval()
         return model, num_classes
 
-    def _collect_images(self, root: Path) -> list[Path]:
+    def _collect_images(self, images_path: Path) -> list[Path]:
         exts = {".jpg", ".jpeg", ".png"}
-        return sorted([p for p in Path(root).rglob("*") if p.suffix.lower() in exts])
+        return sorted([p for p in Path(images_path).rglob("*") if p.suffix.lower() in exts])
 
     def _infer(
         self,
@@ -35,6 +35,7 @@ class Predictor:
         paths: Sequence[Path],
         num_classes: int,
         batch_size: int,
+        write_label_idx: bool,
         write_probs: bool,
     ) -> list[list[Any]]:
         sm = torch.nn.Softmax(dim=1)
@@ -53,17 +54,23 @@ class Predictor:
                 preds = probs.argmax(axis=1)
                 for path, pred0, prob_vec in zip(chunk, preds, probs):
                     pred1 = int(pred0) + 1  # shift 0→1, etc.
-                    row = [str(path), int(pred0), pred1]
+                    row = [str(path), pred1]
+                    if write_label_idx:
+                        row.append(int(pred0))
                     if write_probs:
                         # ensure length matches num_classes
                         if len(prob_vec) != num_classes:
                             raise ValueError("Probability vector length mismatch num_classes")
-                        row.extend([float(x) for x in prob_vec])
+                        row += [float(x) for x in prob_vec]
                     out_rows.append(row)
         return out_rows
 
-    def _write_csv(self, output_path: Path, rows: list[list[Any]], num_classes: int, write_probs: bool) -> None:
-        header = ["image_path", "pred_label_idx", "pred_label"]
+    def _write_csv(
+        self, output_path: Path, rows: list[list[Any]], num_classes: int, write_label_idx: bool, write_probs: bool
+    ) -> None:
+        header = ["image_path", "pred_label"]
+        if write_label_idx:
+            header += ["pred_label_idx"]
         if write_probs:
             header += [f"prob_{i}" for i in range(num_classes)]
         output_path.parent.mkdir(parents=True, exist_ok=True)
@@ -72,11 +79,25 @@ class Predictor:
             writer.writerow(header)
             writer.writerows(rows)
 
-    def run(self, cfg: PredictorSettings) -> Path:
-        device = torch.device(cfg.device or ("cuda" if torch.cuda.is_available() else "cpu"))
-        model, num_classes = self._load_model(cfg.model_path, device)
-        img_paths = self._collect_images(cfg.images_root)
-        rows = self._infer(model, device, img_paths, num_classes, cfg.batch_size, cfg.write_probs)
-        self._write_csv(cfg.output_path, rows, num_classes, cfg.write_probs)
-        print(f"Wrote {len(rows)} rows to {cfg.output_path}")
-        return cfg.output_path
+    def run(self, config: PredictorSettings) -> Path:
+        device = torch.device(config.device or ("cuda" if torch.cuda.is_available() else "cpu"))
+        model, num_classes = self._load_model(ckpt_path=config.model_path, device=device)
+        img_paths = self._collect_images(images_path=config.images_root)
+        rows = self._infer(
+            model=model,
+            device=device,
+            paths=img_paths,
+            num_classes=num_classes,
+            batch_size=config.batch_size,
+            write_label_idx=config.write_label_idx,
+            write_probs=config.write_probs,
+        )
+        self._write_csv(
+            output_path=config.output_path,
+            rows=rows,
+            num_classes=num_classes,
+            write_label_idx=config.write_label_idx,
+            write_probs=config.write_probs,
+        )
+        print(f"Wrote {len(rows)} rows to {config.output_path}")
+        return config.output_path
