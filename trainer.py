@@ -148,7 +148,7 @@ class Trainer:
                     torch.save(
                         {
                             "model_state_dict": self.model.state_dict(),
-                            "settings": self.config.model_dump(),
+                            "settings": self.config.model_dump(mode="json"),
                             "class_names": self.class_names,
                         },
                         ckpt_path,
@@ -166,7 +166,7 @@ class Trainer:
             torch.save(
                 {
                     "model_state_dict": self.model.state_dict(),
-                    "settings": self.config.model_dump(),
+                    "settings": self.config.model_dump(mode="json"),
                     "class_names": self.class_names,
                 },
                 ckpt_path,
