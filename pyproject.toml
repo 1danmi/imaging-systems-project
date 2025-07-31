@@ -5,17 +5,17 @@ description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
-    "matplotlib>=3.10.3",
+    "matplotlib~=3.10",
     "numpy~=2.3",
     "opencv-python==4.10.0.84",
-    "pandas>=2.3.1",
+    "pandas~=2.3",
     "pillow~=11.3",
     "pydantic-settings~=2.10",
-    "scikit-learn>=1.7.1",
-    "tensorboard>=2.20.0",
+    "scikit-learn~=1.7",
+    "tensorboard~=2.20",
     "torch~=2.7",
-    "torchvision~=0.22",
-    "tqdm>=4.67.1",
+    "torchvision~=0.22.1",
+    "tqdm~=4.67",
 ]
 
 [dependency-groups]

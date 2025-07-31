@@ -241,17 +241,17 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "matplotlib", specifier = ">=3.10.3" },
+    { name = "matplotlib", specifier = "~=3.10" },
     { name = "numpy", specifier = "~=2.3" },
     { name = "opencv-python", specifier = "==4.10.0.84" },
-    { name = "pandas", specifier = ">=2.3.1" },
+    { name = "pandas", specifier = "~=2.3" },
     { name = "pillow", specifier = "~=11.3" },
     { name = "pydantic-settings", specifier = "~=2.10" },
-    { name = "scikit-learn", specifier = ">=1.7.1" },
-    { name = "tensorboard", specifier = ">=2.20.0" },
+    { name = "scikit-learn", specifier = "~=1.7" },
+    { name = "tensorboard", specifier = "~=2.20" },
     { name = "torch", specifier = "~=2.7" },
-    { name = "torchvision", specifier = "~=0.22" },
-    { name = "tqdm", specifier = ">=4.67.1" },
+    { name = "torchvision", specifier = "~=0.22.1" },
+    { name = "tqdm", specifier = "~=4.67" },
 ]
 
 [package.metadata.requires-dev]

@@ -4,21 +4,20 @@ from typing import Any, Callable, Sequence
 
 import torch
 
-from models import SimpleCNN
 from xray_data_processor import XRayDataProcessor
 from config import ProcessorSettings, PredictorSettings
 
 
 class Predictor:
     def __init__(self, processor_settings: ProcessorSettings, base_model_cls: Callable[..., torch.nn.Module]):
-        self.proc_settings = processor_settings
+        self.processor_settings = processor_settings
         self.base_model_cls = base_model_cls
         self.processor = XRayDataProcessor(processor_settings)
 
     def _load_model(self, ckpt_path: Path, device: torch.device):
         ckpt = torch.load(ckpt_path, map_location=device, weights_only=False)
         num_classes = ckpt.get("num_classes", len(ckpt.get("class_names", [])) or 3)
-        in_ch = 3 if self.proc_settings.to_rgb else 1
+        in_ch = 3 if self.processor_settings.to_rgb else 1
         model = self.base_model_cls(in_channels=in_ch, num_classes=num_classes)
         model.load_state_dict(ckpt["model_state_dict"])
         model.to(device).eval()
