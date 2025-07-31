@@ -1,4 +1,6 @@
 import csv
+import pathlib
+import platform
 from pathlib import Path
 from typing import Any, Callable, Sequence
 
@@ -15,6 +17,8 @@ class Predictor:
         self.processor = XRayDataProcessor(processor_settings)
 
     def _load_model(self, ckpt_path: Path, device: torch.device):
+        if platform.system() != "Windows":
+            pathlib.WindowsPath = pathlib.PosixPath
         ckpt = torch.load(ckpt_path, map_location=device, weights_only=False)
         num_classes = ckpt.get("num_classes", len(ckpt.get("class_names", [])) or 3)
         in_ch = 3 if self.processor_settings.to_rgb else 1
