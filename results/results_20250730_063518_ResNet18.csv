@@ -1,0 +1,7 @@
+run_name,augmentations,val_acc_mean,notes,val_loss_mean,val_loss_std,best_epoch_mean,ckpt_path,cm_path,lr,batch_size,epochs,optimizer,weight_decay,early_stop_patience,k_folds
+aug_0,hflip+rotate+translate,0.952156862745098,,0.16326441478875336,0.017896830951930412,15.0,experiments\session_20250730_063518\aug_0\ckpt\ResNet18\best_model_fold2.pth,experiments\session_20250730_063518\aug_0\confusion_matrix.png,0.001,16,30,adam,0.0,5,5
+aug_1,hflip+rotate+translate+noise,0.9481568627450979,,0.1637948212722207,0.025973545553811848,13.0,experiments\session_20250730_063518\aug_1\ckpt\ResNet18\best_model_fold1.pth,experiments\session_20250730_063518\aug_1\confusion_matrix.png,0.001,16,30,adam,0.0,5,5
+aug_2,hflip+rotate+translate+brightness_contrast,0.960156862745098,,0.15737784544889832,0.012628271440470296,16.4,experiments\session_20250730_063518\aug_2\ckpt\ResNet18\best_model_fold2.pth,experiments\session_20250730_063518\aug_2\confusion_matrix.png,0.001,16,30,adam,0.0,5,5
+aug_3,hflip+rotate+translate+clahe,0.952156862745098,,0.15839528139928977,0.02415558109749455,13.8,experiments\session_20250730_063518\aug_3\ckpt\ResNet18\best_model_fold5.pth,experiments\session_20250730_063518\aug_3\confusion_matrix.png,0.001,16,30,adam,0.0,5,5
+aug_4,hflip+rotate+translate+noise+brightness_contrast+clahe,0.964893479872947,,0.15477186997311518,0.02957009566598751,16.0,experiments\session_20250730_063518\aug_4\ckpt\ResNet18\best_model_fold5.pth,experiments\session_20250730_063518\aug_4\confusion_matrix.png,0.001,16,30,adam,0.0,5,5
+,,,,,,,,,,,,,,,
